@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Lint, test & build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        node-version: ['lts/*', 'latest']
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Run tests
+        run: npm test
+
+      # A release carries its version in package.json and its notes in changelog.md, both written by hand in the
+      # pull request that makes it, and changelog.md ships inside the tarball. This is what states that the two
+      # agree, at the point the pair is written rather than at the point it is published.
+      - name: Verify the changelog names this version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if ! grep -qF "## [$version]" changelog.md; then
+            echo "::error::package.json is $version and changelog.md has no '## [$version]' heading"
+            exit 1
+          fi
+          echo "changelog.md names $version"
+
+      - name: Build library
+        run: npm run build
+
+      - name: Verify declaration output
+        run: |
+          size=$(wc -c < dist/index.d.ts)
+          if [ "$size" -lt 500 ]; then
+            echo "::error::dist/index.d.ts is only $size bytes - declarations were rolled up empty"
+            exit 1
+          fi
+          grep -q 'export declare function createTranslatable' dist/index.d.ts
+
+      - name: Incremental coverage check
+        uses: velis74/incremental-coverage-check@v3
+        with:
+          coverage-files: coverage/coverage-final.json
+          extra-ignore-patterns: '**/index.ts'
+          log-level: INFO
+          base-ref: ${{ github.base_ref }}
+          head-ref: HEAD
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.pull_request.number }}
+        # One report per pull request: the graded diff and the coverage file are the
+        # same on both Node versions, so the second run would only repeat the first.
+        if: github.event_name == 'pull_request' && matrix.node-version == 'lts/*'
