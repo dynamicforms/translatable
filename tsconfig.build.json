@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "coverage",
+    "dist",
+    "node_modules",
+    "./**/*.spec.*"
+  ],
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    // TS 5.x infers rootDir from the common source directory, TS 6.0 no longer does (TS5011).
+    // Without it the declarations land in dist/src/ and api-extractor silently rolls up an empty module.
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "skipLibCheck": true
+  }
+}

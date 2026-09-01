@@ -1,0 +1,74 @@
+{
+  "name": "@dynamicforms/translatable",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Reactive string-translation primitives for @dynamicforms libraries: a library declares its English defaults, and the host application supplies translations for them.",
+  "author": "Jure Erznožnik",
+  "files": [
+    "dist/*"
+  ],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/dynamicforms-translatable.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "vite build",
+    "prepack": "npm run build",
+    "test": "vitest run --coverage",
+    "lint": "eslint src --fix && vue-tsc --noEmit",
+    "lint:ci": "eslint src && vue-tsc --noEmit"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "dynamicforms",
+    "i18n",
+    "translation",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dynamicforms/translatable.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dynamicforms/translatable/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
+    "@vitest/coverage-v8": "^4",
+    "@vue/tsconfig": "^0.7.0",
+    "baseline-browser-mapping": "^2.8.31",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-velis": "^3.0.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-unicorn": "^73.0.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "prettier": "^3.9.6",
+    "rollup-plugin-visualizer": "^5.14.0",
+    "typescript": "^5",
+    "vite": "^8",
+    "vite-plugin-dts": "^4",
+    "vitest": "^4",
+    "vue": "^3.5.2",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^2"
+  }
+}
