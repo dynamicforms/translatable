@@ -18,9 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `strings` is read-only; an entry changes only through `translateStrings`.
 
 ### Added
-- The `translateStrings` callback receives a third argument, `placeholders`, mapping every `{name}` placeholder of
-  the string to its own text, so that a translation looked up through vue-i18n's `t(key, placeholders)` keeps its
-  placeholders instead of having them substituted with empty strings.
 - `lookup(key, defaultValue, params)` on the object `createTranslatable` returns: the current translation of any
   key, declared or not, interpolated with `params`, for keys that only exist at run time such as server error
   codes.

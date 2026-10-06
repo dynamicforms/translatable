@@ -4,18 +4,14 @@ import { type ComputedRef, computed, reactive, shallowRef, triggerRef } from 'vu
  * Resolves one entry's translation. Returning null or undefined leaves that entry at `defaultValue` - a
  * translation set that is missing an entry falls back to English rather than rendering nothing.
  *
- * The returned text is a template whose `{name}` placeholders are substituted later, by whoever reads the entry.
- * `placeholders` maps every placeholder name the entry uses to its own `{name}` text. Passed as the params of an
- * i18n library's interpolating lookup (`t(key, placeholders)`), it keeps the placeholders in the result; without
- * params, vue-i18n substitutes each of them with an empty string.
- *
- * The callback runs whenever an entry is read after something it depends on has changed, and the reactive state
- * it reads is tracked: a callback that reads vue-i18n's current locale updates every entry on a locale switch.
+ * The returned text is the raw template, `{name}` placeholders included: whoever reads the entry substitutes
+ * them. The callback runs whenever an entry is read after something it depends on has changed, and the reactive
+ * state it reads is tracked: a callback that reads vue-i18n's current locale updates every entry on a locale
+ * switch.
  */
 export type TranslateStringsCallback<T extends Record<string, string>> = (
   key: keyof T,
   defaultValue: string,
-  placeholders: Record<string, string>,
 ) => string | null | undefined;
 
 export interface Translatable<T extends Record<string, string>> {
@@ -33,18 +29,10 @@ export interface Translatable<T extends Record<string, string>> {
   /**
    * The current translation of `key`, interpolated with `params`. A declared key falls back to its declared
    * default and `defaultValue` is ignored. When `T` admits arbitrary keys (`createTranslatable<Record<string,
-   * string>>(...)`), an undeclared key goes through the same callback, with `defaultValue` as its fallback and
-   * the names of `params` among its placeholders. Reactive when called inside a computed, a watcher or a render.
+   * string>>(...)`), an undeclared key goes through the same callback, with `defaultValue` as its fallback.
+   * Reactive when called inside a computed, a watcher or a render.
    */
   lookup: (key: keyof T & string, defaultValue: string, params?: Record<string, unknown>) => string;
-}
-
-const PLACEHOLDER = /\{([^{}]+)\}/g;
-
-function placeholdersOf(template: string, params?: Record<string, unknown>): Record<string, string> {
-  const names = [...template.matchAll(PLACEHOLDER)].map((match) => match[1]);
-  if (params) names.push(...Object.keys(params));
-  return Object.fromEntries(names.map((name) => [name, `{${name}}`]));
 }
 
 /**
@@ -56,13 +44,9 @@ function placeholdersOf(template: string, params?: Record<string, unknown>): Rec
 export function createTranslatable<T extends Record<string, string>>(defaults: T): Translatable<T> {
   const callback = shallowRef<TranslateStringsCallback<T>>();
 
-  const resolve = (key: keyof T, defaultValue: string, placeholders: Record<string, string>): string =>
-    callback.value?.(key, defaultValue, placeholders) ?? defaultValue;
+  const resolve = (key: keyof T, defaultValue: string): string => callback.value?.(key, defaultValue) ?? defaultValue;
 
-  const entries = Object.keys(defaults).map((key) => {
-    const placeholders = placeholdersOf(defaults[key]);
-    return [key, computed(() => resolve(key, defaults[key], placeholders))];
-  });
+  const entries = Object.keys(defaults).map((key) => [key, computed(() => resolve(key, defaults[key]))]);
   // reactive() unwraps each computed on read, so an entry reads as a plain string and is tracked like one.
   const strings = reactive(Object.fromEntries(entries)) as unknown as T;
 
@@ -75,7 +59,7 @@ export function createTranslatable<T extends Record<string, string>>(defaults: T
 
   const lookup = (key: keyof T & string, defaultValue: string, params?: Record<string, unknown>): string => {
     const template = Object.hasOwn(defaults, key) ? defaults[key] : defaultValue;
-    return interpolate(resolve(key, template, placeholdersOf(template, params)), params);
+    return interpolate(resolve(key, template), params);
   };
 
   return { strings, translateStrings, lookup };

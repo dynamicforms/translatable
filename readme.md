@@ -7,38 +7,40 @@ application supplies them, in whatever way it already manages translations.
 ## Using a `@dynamicforms` library that has translatable strings
 
 Every library that has user-facing strings exports its own `translateStrings` function alongside its own
-reactive `strings` dictionary. `translateStrings` takes a callback that receives a string's key, its English
-default and its placeholders, and returns the translation for the current locale - or `null`/`undefined` when the
-current translation set has nothing for that key, which leaves the English default in place rather than showing
-nothing. A library can therefore be adopted before every one of its strings is translated: whatever is missing
-just reads in English.
+reactive `strings` dictionary. `translateStrings` takes a callback that receives a string's key and its English
+default, and returns the translation for the current locale - or `null`/`undefined` when the current translation
+set has nothing for that key, which leaves the English default in place rather than showing nothing. A library can
+therefore be adopted before every one of its strings is translated: whatever is missing just reads in English.
 
-The callback is not a one-off: every entry of `strings` is re-resolved through it whenever reactive state the
-callback reads changes. A callback built on vue-i18n reads its current locale, so one call at startup is all it
-takes - a later locale switch updates every string, including one already on screen:
+The callback returns the raw template, placeholders included (`'Vrednost mora biti vsaj {minValue}'`); the
+library substitutes them. It is not a one-off: every entry of `strings` is re-resolved through it whenever reactive
+state the callback reads changes. A callback built on vue-i18n reads its current locale, so one call at startup is
+all it takes - a later locale switch updates every string, including one already on screen:
 
 ```ts
 import { translateStrings as translateFormsStrings } from '@dynamicforms/vue-forms';
 import { translateStrings as translateGridStrings } from '@dynamicforms/vue-grid';
 import { translateStrings as translateInputsStrings } from '@dynamicforms/vuetify-inputs';
-import type { Composer } from 'vue-i18n';
 
-function translationsFor(i18n: Composer, namespace: string) {
-  return (key: string, defaultValue: string, placeholders: Record<string, string>) => {
-    const path = `${namespace}.${key}`;
-    return i18n.te(path) ? i18n.t(path, placeholders) : null;
+function translationsFor(namespace: string) {
+  return (key: string) => {
+    const message = i18n.global.tm(`${namespace}.${key}`);
+    return typeof message === 'string' ? message : null;
   };
 }
 
-translateFormsStrings(translationsFor(i18n.global, 'forms'));
-translateGridStrings(translationsFor(i18n.global, 'grid'));
-translateInputsStrings(translationsFor(i18n.global, 'inputs'));
+translateFormsStrings(translationsFor('forms'));
+translateGridStrings(translationsFor('grid'));
+translateInputsStrings(translationsFor('inputs'));
 ```
 
-`placeholders` maps every `{name}` placeholder of the string to its own text (`{ minValue: '{minValue}' }`).
-Passing it to `t()` is what keeps the placeholders in the translation, for the library to substitute later:
-vue-i18n substitutes the placeholders of a message looked up without params with empty strings, so
-`t('forms.MinValue')` returns `'Value must be at least '`.
+`tm()` returns the raw message for the current locale, or for the fallback locale when the current one lacks it,
+and an empty object when neither has it. `t()` does not fit here: it substitutes placeholders itself, with empty
+strings for the params it is not given, so `t('forms.MinValue')` returns `'Value must be at least '`.
+
+Messages compiled at build time (`@intlify/unplugin-vue-i18n`) exist at run time only as compiled functions, with
+no raw text for `tm()` to return; the callback above then returns `null` for every key, and every string stays at
+its English default. The messages these libraries use have to be loaded uncompiled, as JSON.
 
 A callback over translations the application keeps outside Vue's reactivity has to be passed again whenever they
 change - every call re-resolves every entry, with a new callback or the same one:
@@ -103,6 +105,5 @@ const message = computed(() => lookup(body.code, body.detail, body.params));
 ```
 
 `lookup(key, defaultValue, params)` returns the current translation of `key`, interpolated with `params`. A
-declared key falls back to its declared default; any other key falls back to `defaultValue`, and the names of
-`params` reach the callback among its placeholders. Called inside a computed, a watcher or a render, it follows a
-locale switch the same way `strings` does.
+declared key falls back to its declared default and any other key to `defaultValue`. Called inside a computed, a
+watcher or a render, it follows a locale switch the same way `strings` does.

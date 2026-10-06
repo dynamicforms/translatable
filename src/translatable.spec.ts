@@ -3,15 +3,21 @@ import { computed, ref, toRef } from 'vue';
 import { createTranslatable, interpolate, translate } from './translatable';
 
 /**
- * A stand-in for vue-i18n's composer: `locale` is a ref, `te` checks only the current locale, and `t`
- * substitutes every placeholder with the matching named param, or with nothing when there is none.
+ * A stand-in for vue-i18n's composer: `locale` is a ref, and `tm` returns the raw message for the current locale,
+ * then for `en` as the fallback locale, or an empty object when neither has it.
  */
 function fakeI18n(messages: Record<string, Record<string, string>>) {
   const locale = ref('en');
-  const te = (key: string) => key in messages[locale.value];
-  const t = (key: string, named: Record<string, unknown> = {}) =>
-    messages[locale.value][key].replaceAll(/\{([^{}]+)\}/g, (_, name: string) => String(named[name] ?? ''));
-  return { locale, te, t };
+  const tm = (key: string): unknown => messages[locale.value][key] ?? messages.en[key] ?? {};
+  return { locale, tm };
+}
+
+/** The callback the readme recommends for vue-i18n. */
+function rawMessages(i18n: ReturnType<typeof fakeI18n>, namespace?: string) {
+  return (key: string) => {
+    const message = i18n.tm(namespace ? `${namespace}.${key}` : key);
+    return typeof message === 'string' ? message : null;
+  };
 }
 
 describe('createTranslatable', () => {
@@ -65,7 +71,7 @@ describe('createTranslatable', () => {
     const { strings, translateStrings } = createTranslatable({ Loading: 'Loading...' });
     const label = computed(() => strings.Loading);
 
-    translateStrings((key) => (i18n.te(`grid.${key}`) ? i18n.t(`grid.${key}`) : null));
+    translateStrings(rawMessages(i18n, 'grid'));
     expect(label.value).toBe('Loading');
 
     i18n.locale.value = 'sl';
@@ -78,7 +84,7 @@ describe('createTranslatable', () => {
     const { strings, translateStrings } = createTranslatable({ Required: 'Please enter a value' });
     const required = toRef(strings, 'Required');
 
-    translateStrings((key) => (i18n.te(key) ? i18n.t(key) : null));
+    translateStrings(rawMessages(i18n));
     i18n.locale.value = 'sl';
 
     expect(required.value).toBe('Obvezno');
@@ -97,35 +103,26 @@ describe('createTranslatable', () => {
     expect(strings.Hello).toBe('Živjo');
   });
 
-  it('should hand the callback every placeholder of the default text, mapped to itself', () => {
-    const { strings, translateStrings } = createTranslatable({
-      Plain: 'Loading',
-      ValueInRange: 'Value must be between {minValue} and {maxValue}',
-    });
-    const received: Record<string, Record<string, string>> = {};
-
-    translateStrings((key, _defaultValue, placeholders) => {
-      received[key] = placeholders;
-      return null;
-    });
-    void strings.Plain;
-    void strings.ValueInRange;
-
-    expect(received.Plain).toEqual({});
-    expect(received.ValueInRange).toEqual({ minValue: '{minValue}', maxValue: '{maxValue}' });
-  });
-
-  it('should keep the placeholders of a translation fetched through an interpolating lookup', () => {
+  it('should keep the placeholders of a raw translation for the reader to substitute', () => {
     const i18n = fakeI18n({ en: {}, sl: { 'grid.FilterColumn': 'Filtriraj stolpec {column}' } });
     const { strings, translateStrings } = createTranslatable({ FilterColumn: 'Filter column {column}' });
     i18n.locale.value = 'sl';
 
-    translateStrings((key, _defaultValue, placeholders) =>
-      i18n.te(`grid.${key}`) ? i18n.t(`grid.${key}`, placeholders) : null,
-    );
+    translateStrings(rawMessages(i18n, 'grid'));
 
     expect(strings.FilterColumn).toBe('Filtriraj stolpec {column}');
     expect(interpolate(strings.FilterColumn, { column: 'Ime' })).toBe('Filtriraj stolpec Ime');
+  });
+
+  it("should take the fallback locale's translation over the library default", () => {
+    const i18n = fakeI18n({ en: { 'grid.NoData': 'Nothing here' }, sl: {} });
+    const { strings, translateStrings } = createTranslatable({ NoData: 'No data', Loading: 'Loading...' });
+    i18n.locale.value = 'sl';
+
+    translateStrings(rawMessages(i18n, 'grid'));
+
+    expect(strings.NoData).toBe('Nothing here');
+    expect(strings.Loading).toBe('Loading...');
   });
 });
 
@@ -147,9 +144,7 @@ describe('lookup', () => {
     const { lookup, translateStrings } = createTranslatable<Record<string, string>>({ not_found: 'Not found' });
     i18n.locale.value = 'sl';
 
-    translateStrings((key, _defaultValue, placeholders) =>
-      i18n.te(`errors.${key}`) ? i18n.t(`errors.${key}`, placeholders) : null,
-    );
+    translateStrings(rawMessages(i18n, 'errors'));
 
     const message = lookup('insufficient_balance', 'balance 5 is short of 10', { required: 10, available: 5 });
     expect(message).toBe('Na voljo 5, potrebno 10');
@@ -167,7 +162,7 @@ describe('lookup', () => {
   it('should update a computed built over it on a locale switch', () => {
     const i18n = fakeI18n({ en: { session_expired: 'Session expired' }, sl: { session_expired: 'Seja je potekla' } });
     const { lookup, translateStrings } = createTranslatable<Record<string, string>>({});
-    translateStrings((key) => (i18n.te(key) ? i18n.t(key) : null));
+    translateStrings(rawMessages(i18n));
     const message = computed(() => lookup('session_expired', 'Session expired or invalid'));
 
     expect(message.value).toBe('Session expired');
@@ -218,7 +213,7 @@ describe('translate', () => {
   it('should re-interpolate against the new translation on a locale switch', () => {
     const i18n = fakeI18n({ en: {}, sl: { MinValue: 'Vrednost mora biti vsaj {minValue}' } });
     const { strings, translateStrings } = createTranslatable({ MinValue: 'Value must be at least {minValue}' });
-    translateStrings((key, _defaultValue, placeholders) => (i18n.te(key) ? i18n.t(key, placeholders) : null));
+    translateStrings(rawMessages(i18n));
     const message = translate(strings, 'MinValue', { minValue: 5 });
 
     expect(message.value).toBe('Value must be at least 5');
