@@ -1,174 +1,157 @@
-import { computed, ref, toRef } from 'vue';
+import { computed, nextTick, watchEffect } from 'vue';
+import { createI18n } from 'vue-i18n';
 
-import { createTranslatable, interpolate, translate } from './translatable';
+import { createTranslatable, interpolate, type TranslateFunction } from './translatable';
 
-/**
- * A stand-in for vue-i18n's composer: `locale` is a ref, and `tm` returns the raw message for the current locale,
- * then for `en` as the fallback locale, or an empty object when neither has it.
- */
-function fakeI18n(messages: Record<string, Record<string, string>>) {
-  const locale = ref('en');
-  const tm = (key: string): unknown => messages[locale.value][key] ?? messages.en[key] ?? {};
-  return { locale, tm };
+function i18nWith(locale: string) {
+  return createI18n({
+    legacy: false,
+    locale,
+    fallbackLocale: 'en',
+    missingWarn: false,
+    fallbackWarn: false,
+    messages: {
+      en: {
+        forms: { MinValue: 'Must be at least {minValue}', OnlyEnglish: 'Only in English' },
+        errors: { unknown_setting: 'Unknown setting {name}' },
+      },
+      sl: {
+        forms: { MinValue: 'Vrednost mora biti vsaj {minValue}', Required: 'Obvezno' },
+        errors: { unknown_setting: 'Neznana nastavitev {name}' },
+      },
+    },
+  });
 }
 
-/** The callback the readme recommends for vue-i18n. */
-function rawMessages(i18n: ReturnType<typeof fakeI18n>, namespace?: string) {
-  return (key: string) => {
-    const message = i18n.tm(namespace ? `${namespace}.${key}` : key);
-    return typeof message === 'string' ? message : null;
-  };
-}
+const defaults = {
+  MinValue: 'Value must be at least {minValue}',
+  Required: 'Please enter a value',
+  OnlyEnglish: 'English default',
+  Untranslated: 'Nobody translated {what}',
+};
 
-describe('createTranslatable', () => {
-  it('should start out equal to the given defaults', () => {
-    const { strings } = createTranslatable({ Hello: 'Hello', Bye: 'Bye' });
+describe('translate', () => {
+  it('should give the English default with params substituted before translateStrings is called', () => {
+    const { translate } = createTranslatable(defaults);
 
-    expect(strings.Hello).toBe('Hello');
-    expect(strings.Bye).toBe('Bye');
+    expect(translate('MinValue', { minValue: 5 })).toBe('Value must be at least 5');
+    expect(translate('Required')).toBe('Please enter a value');
   });
 
-  it('should replace entries with what the callback returns for them', () => {
-    const { strings, translateStrings } = createTranslatable({ Hello: 'Hello', Bye: 'Bye' });
+  it('should take the translation from t, with t substituting the params', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
 
-    translateStrings((key) => ({ Hello: 'Živjo', Bye: 'Adijo' })[key]);
+    translateStrings(global.t, 'forms');
 
-    expect(strings.Hello).toBe('Živjo');
-    expect(strings.Bye).toBe('Adijo');
+    expect(translate('MinValue', { minValue: 5 })).toBe('Vrednost mora biti vsaj 5');
+    expect(translate('Required')).toBe('Obvezno');
   });
 
-  it('should fall back to the English default when the callback returns null or undefined', () => {
-    const { strings, translateStrings } = createTranslatable({ Hello: 'Hello', Bye: 'Bye' });
-    const partial: Partial<Record<'Hello' | 'Bye', string>> = { Hello: 'Živjo' };
+  it("should take the fallback locale's translation when the current locale has none", () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
 
-    translateStrings((key) => partial[key]);
+    translateStrings(global.t, 'forms');
 
-    expect(strings.Hello).toBe('Živjo');
-    expect(strings.Bye).toBe('Bye');
+    expect(translate('OnlyEnglish')).toBe('Only in English');
   });
 
-  it('should let a later translateStrings call revert an entry the callback no longer covers', () => {
-    const { strings, translateStrings } = createTranslatable({ Hello: 'Hello' });
+  it('should fall back to the English default, params substituted, when no locale has a translation', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
 
-    translateStrings(() => 'Živjo');
-    expect(strings.Hello).toBe('Živjo');
+    translateStrings(global.t, 'forms');
 
-    translateStrings(() => undefined);
-    expect(strings.Hello).toBe('Hello');
+    expect(translate('Untranslated', { what: 'this' })).toBe('Nobody translated this');
   });
 
-  it('should update a computed built over strings when translateStrings replaces an entry', () => {
-    const { strings, translateStrings } = createTranslatable({ Hello: 'Hello' });
-    const greeting = computed(() => strings.Hello);
+  it('should look a key up without a prefix when no namespace is given', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable<Record<string, string>>({});
 
-    translateStrings(() => 'Živjo');
+    translateStrings(global.t);
 
-    expect(greeting.value).toBe('Živjo');
+    expect(translate('forms.Required')).toBe('Obvezno');
   });
 
-  it('should follow the reactive state the callback reads without another translateStrings call', () => {
-    const i18n = fakeI18n({ en: { 'grid.Loading': 'Loading' }, sl: { 'grid.Loading': 'Nalagam' } });
-    const { strings, translateStrings } = createTranslatable({ Loading: 'Loading...' });
-    const label = computed(() => strings.Loading);
+  it('should follow a locale switch without another translateStrings call', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
+    translateStrings(global.t, 'forms');
+    const message = computed(() => translate('MinValue', { minValue: 5 }));
+    const required = computed(() => translate('Required'));
 
-    translateStrings(rawMessages(i18n, 'grid'));
-    expect(label.value).toBe('Loading');
+    expect(message.value).toBe('Vrednost mora biti vsaj 5');
+    expect(required.value).toBe('Obvezno');
 
-    i18n.locale.value = 'sl';
-    expect(strings.Loading).toBe('Nalagam');
-    expect(label.value).toBe('Nalagam');
+    global.locale.value = 'en';
+    expect(message.value).toBe('Must be at least 5');
+    expect(required.value).toBe('Please enter a value');
   });
 
-  it('should keep a ref made by toRef over an entry current after a locale switch', () => {
-    const i18n = fakeI18n({ en: { Required: 'Required' }, sl: { Required: 'Obvezno' } });
-    const { strings, translateStrings } = createTranslatable({ Required: 'Please enter a value' });
-    const required = toRef(strings, 'Required');
+  it('should re-run an effect that read a translation, as a render does, on a locale switch', async () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
+    translateStrings(global.t, 'forms');
+    const rendered: string[] = [];
+    const stop = watchEffect(() => rendered.push(translate('MinValue', { minValue: 5 })));
 
-    translateStrings(rawMessages(i18n));
-    i18n.locale.value = 'sl';
+    global.locale.value = 'en';
+    await nextTick();
+    stop();
 
+    expect(rendered).toEqual(['Vrednost mora biti vsaj 5', 'Must be at least 5']);
+  });
+
+  it('should re-resolve a translation already read when translateStrings is called', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
+    const required = computed(() => translate('Required'));
+
+    expect(required.value).toBe('Please enter a value');
+
+    translateStrings(global.t, 'forms');
     expect(required.value).toBe('Obvezno');
   });
 
-  it('should re-resolve every entry when the same callback is passed again', () => {
-    const dictionary: Record<string, string> = { Hello: 'Hello' };
-    const { strings, translateStrings } = createTranslatable({ Hello: 'Hello' });
-    const cb = (key: string) => dictionary[key];
+  it('should re-resolve when the same function is passed again over changed non-reactive translations', () => {
+    const dictionary: Record<string, string> = {};
+    const t: TranslateFunction = (key, named) => interpolate(dictionary[key] ?? key, named);
+    const { translate, translateStrings } = createTranslatable(defaults);
+    translateStrings(t);
+    const required = computed(() => translate('Required'));
 
-    translateStrings(cb);
-    expect(strings.Hello).toBe('Hello');
+    expect(required.value).toBe('Please enter a value');
 
-    dictionary.Hello = 'Živjo';
-    translateStrings(cb);
-    expect(strings.Hello).toBe('Živjo');
+    dictionary.Required = 'Obvezno';
+    translateStrings(t);
+    expect(required.value).toBe('Obvezno');
   });
 
-  it('should keep the placeholders of a raw translation for the reader to substitute', () => {
-    const i18n = fakeI18n({ en: {}, sl: { 'grid.FilterColumn': 'Filtriraj stolpec {column}' } });
-    const { strings, translateStrings } = createTranslatable({ FilterColumn: 'Filter column {column}' });
-    i18n.locale.value = 'sl';
+  it('should send an undeclared key through t when the dictionary admits arbitrary keys', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable<Record<string, string>>({});
 
-    translateStrings(rawMessages(i18n, 'grid'));
+    translateStrings(global.t, 'errors');
 
-    expect(strings.FilterColumn).toBe('Filtriraj stolpec {column}');
-    expect(interpolate(strings.FilterColumn, { column: 'Ime' })).toBe('Filtriraj stolpec Ime');
+    expect(translate('unknown_setting', { name: 'barva' }, 'Unknown setting: colour')).toBe('Neznana nastavitev barva');
   });
 
-  it("should take the fallback locale's translation over the library default", () => {
-    const i18n = fakeI18n({ en: { 'grid.NoData': 'Nothing here' }, sl: {} });
-    const { strings, translateStrings } = createTranslatable({ NoData: 'No data', Loading: 'Loading...' });
-    i18n.locale.value = 'sl';
+  it('should fall back to the given default, then to the key, for an undeclared key without a translation', () => {
+    const { global } = i18nWith('sl');
+    const { translate, translateStrings } = createTranslatable<Record<string, string>>({});
 
-    translateStrings(rawMessages(i18n, 'grid'));
+    translateStrings(global.t, 'errors');
 
-    expect(strings.NoData).toBe('Nothing here');
-    expect(strings.Loading).toBe('Loading...');
-  });
-});
-
-describe('lookup', () => {
-  it('should resolve a declared key against its declared default, ignoring the given one', () => {
-    const { lookup, translateStrings } = createTranslatable({ NotFound: 'Item {pk} not found' });
-
-    expect(lookup('NotFound', 'ignored', { pk: 42 })).toBe('Item 42 not found');
-
-    translateStrings(() => 'Element {pk} ne obstaja');
-    expect(lookup('NotFound', 'ignored', { pk: 42 })).toBe('Element 42 ne obstaja');
+    expect(translate('no_club', {}, 'No club selected.')).toBe('No club selected.');
+    expect(translate('no_club')).toBe('no_club');
   });
 
-  it('should send an undeclared key through the callback when the dictionary admits arbitrary keys', () => {
-    const i18n = fakeI18n({
-      en: {},
-      sl: { 'errors.insufficient_balance': 'Na voljo {available}, potrebno {required}' },
-    });
-    const { lookup, translateStrings } = createTranslatable<Record<string, string>>({ not_found: 'Not found' });
-    i18n.locale.value = 'sl';
+  it('should prefer the declared default over the given one', () => {
+    const { translate } = createTranslatable(defaults);
 
-    translateStrings(rawMessages(i18n, 'errors'));
-
-    const message = lookup('insufficient_balance', 'balance 5 is short of 10', { required: 10, available: 5 });
-    expect(message).toBe('Na voljo 5, potrebno 10');
-  });
-
-  it('should fall back to the given default for an undeclared key the callback does not cover', () => {
-    const { lookup, translateStrings } = createTranslatable<Record<string, string>>({});
-
-    expect(lookup('unknown_setting', 'Unknown setting: colour')).toBe('Unknown setting: colour');
-
-    translateStrings(() => undefined);
-    expect(lookup('unknown_setting', 'Unknown setting: colour')).toBe('Unknown setting: colour');
-  });
-
-  it('should update a computed built over it on a locale switch', () => {
-    const i18n = fakeI18n({ en: { session_expired: 'Session expired' }, sl: { session_expired: 'Seja je potekla' } });
-    const { lookup, translateStrings } = createTranslatable<Record<string, string>>({});
-    translateStrings(rawMessages(i18n));
-    const message = computed(() => lookup('session_expired', 'Session expired or invalid'));
-
-    expect(message.value).toBe('Session expired');
-
-    i18n.locale.value = 'sl';
-    expect(message.value).toBe('Seja je potekla');
+    expect(translate('Required', {}, 'ignored')).toBe('Please enter a value');
   });
 });
 
@@ -189,36 +172,5 @@ describe('interpolate', () => {
 
   it('should leave a placeholder untouched when no matching param is given', () => {
     expect(interpolate('Value must be at least {minValue}', { other: 1 })).toBe('Value must be at least {minValue}');
-  });
-});
-
-describe('translate', () => {
-  it('should interpolate the current value of the given entry', () => {
-    const { strings } = createTranslatable({ MinValue: 'Value must be at least {minValue}' });
-
-    const message = translate(strings, 'MinValue', { minValue: 5 });
-
-    expect(message.value).toBe('Value must be at least 5');
-  });
-
-  it('should re-interpolate the same params against a translated entry', () => {
-    const { strings, translateStrings } = createTranslatable({ MinValue: 'Value must be at least {minValue}' });
-    const message = translate(strings, 'MinValue', { minValue: 5 });
-
-    translateStrings(() => 'Vrednost mora biti vsaj {minValue}');
-
-    expect(message.value).toBe('Vrednost mora biti vsaj 5');
-  });
-
-  it('should re-interpolate against the new translation on a locale switch', () => {
-    const i18n = fakeI18n({ en: {}, sl: { MinValue: 'Vrednost mora biti vsaj {minValue}' } });
-    const { strings, translateStrings } = createTranslatable({ MinValue: 'Value must be at least {minValue}' });
-    translateStrings(rawMessages(i18n));
-    const message = translate(strings, 'MinValue', { minValue: 5 });
-
-    expect(message.value).toBe('Value must be at least 5');
-
-    i18n.locale.value = 'sl';
-    expect(message.value).toBe('Vrednost mora biti vsaj 5');
   });
 });
