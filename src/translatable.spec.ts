@@ -144,8 +144,8 @@ describe('translate', () => {
 
     translateStrings(global.t, 'errors');
 
-    expect(translate('no_club', {}, 'No club selected.')).toBe('No club selected.');
-    expect(translate('no_club')).toBe('no_club');
+    expect(translate('quota_exceeded', {}, 'Quota exceeded.')).toBe('Quota exceeded.');
+    expect(translate('quota_exceeded')).toBe('quota_exceeded');
   });
 
   it('should prefer the declared default over the given one', () => {

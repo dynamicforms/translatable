@@ -80,7 +80,7 @@ translateErrorCodes(i18n.global.t, 'errors');
 ```
 
 ```json
-{ "errors": { "no_club": "Klub ni izbran" } }
+{ "errors": { "quota_exceeded": "Kvota je presežena" } }
 ```
 
 A run-time key without a translation shows the English text the library passes with it (for an error, the message
