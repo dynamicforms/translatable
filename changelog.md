@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The readme states that a library function returning a translated message returns `ComputedRef<string>`, so a
   stored message follows a locale switch.
 - The readme states that the package depends only on Vue and works with any function shaped like `t`; vue-i18n is
-  used in the examples and tests, and its specifics are listed separately.
+  used in the examples and tests, and its specifics are listed apart.
+- The readme is split into an application part and a library part, each stating what that party does.
 
 ## [0.2.0] - 2026-10-06
 

@@ -1,11 +1,20 @@
 # @dynamicforms/translatable
 
-Translatable strings for the `@dynamicforms` Vue libraries. A library declares its strings with English defaults.
-The application supplies a translation function. The library ships no translations and does not select a locale.
+Translatable strings for the `@dynamicforms` Vue libraries.
 
-The package depends only on Vue. It works with any translation function that has the signature below: vue-i18n's
-and i18next's `t` have it, and a function over a plain dictionary can be written with `interpolate`. The examples
-and the tests use vue-i18n.
+Two parties use this package:
+
+- **Library**: a package with user-facing strings, such as `@dynamicforms/vue-forms`. It declares its strings with
+  English defaults, reads them with `translate`, and exports `translateStrings`.
+- **Application**: the app that uses such libraries. It owns the translations and the locale, and passes its
+  translation function to each library's `translateStrings`.
+
+A library ships no translations and does not select a locale. The libraries list this package as a peer
+dependency, so the application installs it; the application imports from it only `interpolate` and the `TranslateFunction` type, to write a
+translation function without an i18n library.
+
+The package depends only on Vue. The translation function is any function with the signature below. vue-i18n's and
+i18next's `t` have it. The examples and the tests use vue-i18n.
 
 ## Translation function
 
@@ -13,31 +22,35 @@ and the tests use vue-i18n.
 type TranslateFunction = (key: string, named: Record<string, unknown>) => string;
 ```
 
-Returns the translation of `key` with `named` substituted, or `key` unchanged if there is no translation.
+Returns the translation of `key` with `named` substituted, or `key` unchanged if there is no translation. The
+application provides it; the library calls it.
 
-## Application setup
+## Application
 
-Each library exports a `translateStrings` function. Call it once per library with the translation function and the
-namespace that holds the library's keys. With vue-i18n:
+### Connecting a library
+
+Call each library's `translateStrings` once, with the translation function and the namespace that holds the
+library's keys in the application's translations. With vue-i18n:
 
 ```ts
 import { translateStrings as translateFormsStrings } from '@dynamicforms/vue-forms';
 import { translateStrings as translateGridStrings } from '@dynamicforms/vue-grid';
-import { translateStrings as translateInputsStrings } from '@dynamicforms/vuetify-inputs';
 
 translateFormsStrings(i18n.global.t, 'forms');
 translateGridStrings(i18n.global.t, 'grid');
-translateInputsStrings(i18n.global.t, 'inputs');
 ```
 
 ```json
 { "forms": { "MinValue": "Vrednost mora biti vsaj {minValue}" } }
 ```
 
-With namespace `forms`, key `MinValue` is looked up as `forms.MinValue`. The library passes the placeholder values
-to the translation function, which substitutes them.
+With namespace `forms`, the library looks up key `MinValue` as `forms.MinValue`. Without a namespace, as `MinValue`.
 
-Without an i18n library, with `interpolate`, which substitutes `{name}` placeholders:
+Each library's documentation lists its keys and the placeholders in their default text. Translations use the same
+placeholder names; the library passes their values and the translation function substitutes them.
+
+Without an i18n library, write the translation function with `interpolate`, which substitutes `{name}`
+placeholders:
 
 ```ts
 import { interpolate } from '@dynamicforms/translatable';
@@ -46,45 +59,54 @@ const t = (key: string, named: Record<string, unknown>) => interpolate(dictionar
 translateFormsStrings(t);
 ```
 
-Each library's documentation lists its keys and the placeholders in their default text. Translations use the same
-placeholder names.
-
 ### Resolution order
 
-1. The translation function, called with `'<namespace>.<key>'` and `params`.
-2. The library's English default for the key, with `params` substituted.
-3. For a key the library does not declare: the `defaultValue` argument of `translate`, then the key itself.
+For each string, the library uses the first of:
 
-A translation counts as missing when the translation function returns the key unchanged.
+1. The translation function's result for `'<namespace>.<key>'`, unless it is the key unchanged.
+2. The library's English default for the key.
+3. For a key the library does not declare: the English text the library passes with it, then the key itself.
 
-### Reactivity
+An application can therefore connect a library before translating all of its keys.
 
-The translation function is called on every read. Strings read in a template, a computed or a watcher re-evaluate
-when reactive state the function reads changes. Each `translateStrings` call also re-evaluates all strings; a
-function over non-reactive translations needs that call after the translations change.
+### Locale changes
+
+The library calls the translation function on every read, inside the reactive context of the render, computed or
+watcher that reads the string. A string updates when reactive state the translation function reads changes.
+
+A translation function over non-reactive translations does not trigger updates. Call `translateStrings` again
+after changing them; each call re-evaluates all strings.
 
 ### Notes for vue-i18n
 
-- `t` reads the current locale, so all strings follow a locale switch without a `translateStrings` call.
+- `t` reads the reactive current locale, so all strings follow a locale switch without a `translateStrings` call.
 - `t` covers the current locale and the `fallbackLocale` chain in step 1 of the resolution order.
 - `t` returns the key for a missing translation by default. A `missing` handler that returns a different value
   disables steps 2 and 3.
 - vue-i18n logs a warning for each missing key in development unless `missingWarn: false` is set.
 
-## Declaring strings in a library
+## Library
+
+### Declaring strings
 
 ```ts
 import { createTranslatable } from '@dynamicforms/translatable';
 
-const { translate, translateStrings } = createTranslatable({
+export const { translate, translateStrings } = createTranslatable({
   Required: 'Please enter a value',
   MinValue: 'Value must be at least {minValue}',
 });
-
-export { translateStrings };
 ```
 
-`translate(key, params?, defaultValue?)` returns the current translation of `key` with `params` substituted:
+Keys are PascalCase and name the meaning, not the English text (`Required`, not `PleaseEnterAValue`).
+
+Export `translateStrings` from the library's public API (`install()` options, a named export, or both) and
+document every key with its placeholders.
+
+### Reading strings
+
+`translate(key, params?, defaultValue?)` returns the current translation of `key` with `params` substituted. Call
+it where the string is displayed, in a template or a computed:
 
 ```vue
 <template>
@@ -96,9 +118,9 @@ export { translateStrings };
 const message = computed(() => translate('MinValue', { minValue: 5 }));
 ```
 
-### Returning a message to the caller
+### Returning a translated message
 
-A function that returns a translated message to the caller returns `ComputedRef<string>`, not `string`:
+A library function that hands a translated message to its caller returns `ComputedRef<string>`, not `string`:
 
 ```ts
 export function requiredMessage(): ComputedRef<string> {
@@ -106,11 +128,9 @@ export function requiredMessage(): ComputedRef<string> {
 }
 ```
 
-A `string` holds the translation of the locale active at the time of the call. A caller that stores it, such as a
-field error or a notification, shows that locale after a locale switch. A `ComputedRef` re-evaluates on every read.
-
-Keys are PascalCase and name the meaning, not the English text (`Required`, not `PleaseEnterAValue`). Export
-`translateStrings` from the library's public API (`install()` options, a named export, or both).
+A returned `string` holds the translation of the locale active at the time of the call. When the caller stores it,
+for example as a field error or a notification, it stays in that locale after a locale switch. A `ComputedRef`
+re-evaluates on every read.
 
 ### Run-time keys
 
@@ -125,8 +145,8 @@ const { translate, translateStrings } = createTranslatable<Record<string, string
 const message = computed(() => translate(body.detail_code, body.detail_params, body.detail));
 ```
 
-Without a translation in any locale, `message` is the declared default for `not_found`, `body.detail` for any other
-code, and the code itself if `body.detail` is empty.
+Without a translation, `message` is the declared default for `not_found`, `body.detail` for any other code, and the
+code itself if `body.detail` is empty.
 
-A library that keeps declared and run-time keys in separate namespaces creates two instances and exports the
+To keep declared keys and run-time keys in separate namespaces, create two instances and export the
 `translateStrings` of both.
