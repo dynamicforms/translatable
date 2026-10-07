@@ -1,13 +1,24 @@
 # @dynamicforms/translatable
 
 Translatable strings for the `@dynamicforms` Vue libraries. A library declares its strings with English defaults.
-The application supplies its translation function (vue-i18n's `t` or any function with the same signature). The
-library ships no translations and does not select a locale.
+The application supplies a translation function. The library ships no translations and does not select a locale.
+
+The package depends only on Vue. It works with any translation function that has the signature below: vue-i18n's
+and i18next's `t` have it, and a function over a plain dictionary can be written with `interpolate`. The examples
+and the tests use vue-i18n.
+
+## Translation function
+
+```ts
+type TranslateFunction = (key: string, named: Record<string, unknown>) => string;
+```
+
+Returns the translation of `key` with `named` substituted, or `key` unchanged if there is no translation.
 
 ## Application setup
 
 Each library exports a `translateStrings` function. Call it once per library with the translation function and the
-namespace that holds the library's keys:
+namespace that holds the library's keys. With vue-i18n:
 
 ```ts
 import { translateStrings as translateFormsStrings } from '@dynamicforms/vue-forms';
@@ -24,33 +35,9 @@ translateInputsStrings(i18n.global.t, 'inputs');
 ```
 
 With namespace `forms`, key `MinValue` is looked up as `forms.MinValue`. The library passes the placeholder values
-to `t`, and `t` substitutes them.
+to the translation function, which substitutes them.
 
-### Resolution order
-
-1. `t('<namespace>.<key>', params)`. In vue-i18n this covers the current locale and the `fallbackLocale` chain.
-2. The library's English default for the key, with `params` substituted.
-3. For a key the library does not declare: the `defaultValue` argument of `translate`, then the key itself.
-
-A translation counts as missing when `t` returns the key unchanged. vue-i18n does so by default. A vue-i18n
-`missing` handler that returns a different value disables steps 2 and 3.
-
-vue-i18n logs a warning for each missing key in development unless `missingWarn: false` is set.
-
-### Reactivity
-
-Strings read in a template, a computed or a watcher update when the locale changes, because `t` reads the current
-locale on every call. Each `translateStrings` call re-evaluates all strings.
-
-### Translation function
-
-```ts
-type TranslateFunction = (key: string, named: Record<string, unknown>) => string;
-```
-
-Returns the translation of `key` with `named` substituted, or `key` unchanged if there is no translation.
-
-Without an i18n library, build one with `interpolate`, which substitutes `{name}` placeholders:
+Without an i18n library, with `interpolate`, which substitutes `{name}` placeholders:
 
 ```ts
 import { interpolate } from '@dynamicforms/translatable';
@@ -59,11 +46,30 @@ const t = (key: string, named: Record<string, unknown>) => interpolate(dictionar
 translateFormsStrings(t);
 ```
 
-If `dictionary` is reactive, changes to it are tracked. If it is not, call `translateStrings` again after changing
-it.
-
 Each library's documentation lists its keys and the placeholders in their default text. Translations use the same
 placeholder names.
+
+### Resolution order
+
+1. The translation function, called with `'<namespace>.<key>'` and `params`.
+2. The library's English default for the key, with `params` substituted.
+3. For a key the library does not declare: the `defaultValue` argument of `translate`, then the key itself.
+
+A translation counts as missing when the translation function returns the key unchanged.
+
+### Reactivity
+
+The translation function is called on every read. Strings read in a template, a computed or a watcher re-evaluate
+when reactive state the function reads changes. Each `translateStrings` call also re-evaluates all strings; a
+function over non-reactive translations needs that call after the translations change.
+
+### Notes for vue-i18n
+
+- `t` reads the current locale, so all strings follow a locale switch without a `translateStrings` call.
+- `t` covers the current locale and the `fallbackLocale` chain in step 1 of the resolution order.
+- `t` returns the key for a missing translation by default. A `missing` handler that returns a different value
+  disables steps 2 and 3.
+- vue-i18n logs a warning for each missing key in development unless `missingWarn: false` is set.
 
 ## Declaring strings in a library
 
