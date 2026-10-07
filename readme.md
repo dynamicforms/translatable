@@ -90,6 +90,19 @@ export { translateStrings };
 const message = computed(() => translate('MinValue', { minValue: 5 }));
 ```
 
+### Returning a message to the caller
+
+A function that returns a translated message to the caller returns `ComputedRef<string>`, not `string`:
+
+```ts
+export function requiredMessage(): ComputedRef<string> {
+  return computed(() => translate('Required'));
+}
+```
+
+A `string` holds the translation of the locale active at the time of the call. A caller that stores it, such as a
+field error or a notification, shows that locale after a locale switch. A `ComputedRef` re-evaluates on every read.
+
 Keys are PascalCase and name the meaning, not the English text (`Required`, not `PleaseEnterAValue`). Export
 `translateStrings` from the library's public API (`install()` options, a named export, or both).
 
