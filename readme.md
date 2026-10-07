@@ -10,8 +10,8 @@ Two parties use this package:
   translation function to each library's `translateStrings`.
 
 A library ships no translations and does not select a locale. The libraries list this package as a peer
-dependency, so the application installs it; the application imports from it only `interpolate` and the `TranslateFunction` type, to write a
-translation function without an i18n library.
+dependency, so the application installs it. The application imports from it only `interpolate` and the
+`TranslateFunction` type, to write a translation function without an i18n library.
 
 The package depends only on Vue. The translation function is any function with the signature below. vue-i18n's and
 i18next's `t` have it. The examples and the tests use vue-i18n.
