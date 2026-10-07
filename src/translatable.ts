@@ -1,52 +1,57 @@
-import { type ComputedRef, computed, reactive } from 'vue';
+import { shallowRef } from 'vue';
 
 /**
- * Resolves one entry's translation. Returning null or undefined leaves that entry at `defaultValue` - a
- * translation set that is missing an entry falls back to English rather than rendering nothing.
+ * Translation function with the signature of vue-i18n's and i18next's `t`. Returns the translation of `key` with
+ * `named` substituted, or `key` unchanged if there is no translation.
  */
-export type TranslateStringsCallback<T extends Record<string, string>> = (
-  key: keyof T,
-  defaultValue: string,
-) => string | null | undefined;
+export type TranslateFunction = (key: string, named: Record<string, unknown>) => string;
 
 export interface Translatable<T extends Record<string, string>> {
-  /** Reactive dictionary of the current strings; starts out equal to the defaults given to createTranslatable. */
-  strings: T;
-  /** Replaces every entry of `strings` with what `cb` returns for it, falling back to the English default. */
-  translateStrings: (cb: TranslateStringsCallback<T>) => void;
+  /**
+   * Returns the translation of `key` with `params` substituted. Resolution order: `t`, the declared default,
+   * `defaultValue`, `key`. Accepts any string key when `T` is `Record<string, string>`.
+   *
+   * Calls `t` on every read, so a render, computed or watcher tracks the reactive state `t` reads (the locale).
+   */
+  translate: (key: keyof T & string, params?: Record<string, unknown>, defaultValue?: string) => string;
+  /**
+   * Sets `t` as the translation source. Keys are looked up as `${namespace}.${key}`, or as `key` without a
+   * namespace. Each call re-evaluates all translations.
+   */
+  translateStrings: (t: TranslateFunction, namespace?: string) => void;
 }
 
 /**
- * Declares one library's translatable strings under its own English defaults. `strings` is what the library
- * reads from (directly, or through `translate`); `translateStrings` is what the host application calls, once
- * per locale, to replace its values - `strings` being reactive is what lets a message already on screen pick
- * up the change without the library re-rendering it itself.
+ * Creates a library's translatable strings with English defaults. The library reads them with `translate`; the
+ * application sets the translation function with `translateStrings`.
  */
 export function createTranslatable<T extends Record<string, string>>(defaults: T): Translatable<T> {
-  const strings = reactive({ ...defaults }) as T;
-  const translateStrings = (cb: TranslateStringsCallback<T>) => {
-    (Object.keys(defaults) as (keyof T)[]).forEach((key) => {
-      const translated = cb(key, defaults[key]);
-      strings[key] = (translated ?? defaults[key]) as T[keyof T];
-    });
+  const source = shallowRef<{ t: TranslateFunction; prefix: string }>();
+
+  const translate = (key: keyof T & string, params: Record<string, unknown> = {}, defaultValue?: string): string => {
+    const current = source.value;
+    if (current) {
+      const path = `${current.prefix}${key}`;
+      const translated = current.t(path, params);
+      if (translated !== path) return translated;
+    }
+    const fallback = Object.hasOwn(defaults, key) ? defaults[key] : (defaultValue ?? key);
+    return interpolate(fallback, params);
   };
-  return { strings, translateStrings };
+
+  const translateStrings = (t: TranslateFunction, namespace?: string) => {
+    // A new object on every call, so passing the same function again also triggers re-evaluation.
+    source.value = { t, prefix: namespace ? `${namespace}.` : '' };
+  };
+
+  return { translate, translateStrings };
 }
 
-/** Replaces every `{name}` placeholder in `template` with the matching entry of `params`, if given. */
+/**
+ * Replaces each `{name}` placeholder in `template` with `params[name]`. Placeholders without a matching param stay
+ * unchanged.
+ */
 export function interpolate(template: string, params?: Record<string, unknown>): string {
   if (!params) return template;
   return Object.keys(params).reduce((acc, key) => acc.replaceAll(`{${key}}`, String(params[key])), template);
-}
-
-/**
- * A translated, interpolated entry of `strings` as a computed ref, re-evaluated whenever that entry changes -
- * so a message already on screen, placeholders included, updates the moment translateStrings replaces it.
- */
-export function translate<T extends Record<string, string>>(
-  strings: T,
-  key: keyof T,
-  params?: Record<string, unknown>,
-): ComputedRef<string> {
-  return computed(() => interpolate(strings[key], params));
 }

@@ -5,6 +5,25 @@ All notable changes to `@dynamicforms/translatable` will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-06
+
+### Changed
+- `translateStrings(t, namespace?)` takes the host application's translation function, shaped like vue-i18n's and
+  i18next's `t` (`TranslateFunction`), in place of a callback returning raw templates. Each key is looked up as
+  `${namespace}.${key}`, and the function substitutes the placeholders itself; a key it returns unchanged has no
+  translation and reads as the English default. Translations follow the reactive state the function reads, so
+  vue-i18n's `t` updates every string on a locale switch without another call.
+
+### Added
+- `translate(key, params?, defaultValue?)` on the object `createTranslatable` returns: the current translation of
+  `key` with `params` substituted, reactive wherever it is read. With a dictionary typed `Record<string, string>` it
+  also takes keys that only exist at run time, such as server error codes, falling back to `defaultValue`.
+
+### Removed
+- The `strings` dictionary on the object `createTranslatable` returns, and the `translate(strings, key, params)`
+  function; `translate(key, params)` replaces both.
+- `TranslateStringsCallback`, replaced by `TranslateFunction`.
+
 ## [0.1.0] - 2026-09-01
 
 ### Added

@@ -1,2 +1,2 @@
-export { createTranslatable, interpolate, translate } from './translatable';
-export type { Translatable, TranslateStringsCallback } from './translatable';
+export { createTranslatable, interpolate } from './translatable';
+export type { Translatable, TranslateFunction } from './translatable';
