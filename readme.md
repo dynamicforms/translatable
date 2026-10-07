@@ -69,6 +69,24 @@ For each string, the library uses the first of:
 
 An application can therefore connect a library before translating all of its keys.
 
+### Run-time keys
+
+Some libraries also translate keys that only exist at run time, such as error codes sent by the application's own
+server. The library does not know these keys; the application defines them and translates them under the namespace
+it connects for them:
+
+```ts
+translateErrorCodes(i18n.global.t, 'errors');
+```
+
+```json
+{ "errors": { "no_club": "Klub ni izbran" } }
+```
+
+A run-time key without a translation shows the English text the library passes with it (for an error, the message
+the server sent), then the key itself. The library's documentation states which function connects run-time keys
+and where the keys come from.
+
 ### Locale changes
 
 The library calls the translation function on every read, inside the reactive context of the render, computed or
