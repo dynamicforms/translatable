@@ -1,7 +1,8 @@
-import { computed, nextTick, watchEffect } from 'vue';
+import { vi } from 'vitest';
+import { computed, nextTick, ref, watchEffect } from 'vue';
 import { createI18n } from 'vue-i18n';
 
-import { createTranslatable, interpolate, type TranslateFunction } from './translatable';
+import { createTranslatable, formatParams, interpolate, type TranslateFunction } from './translatable';
 
 function i18nWith(locale: string) {
   return createI18n({
@@ -16,8 +17,11 @@ function i18nWith(locale: string) {
         errors: { unknown_setting: 'Unknown setting {name}' },
       },
       sl: {
-        forms: { MinValue: 'Vrednost mora biti vsaj {minValue}', Required: 'Obvezno' },
+        forms: { MinValue: 'Vrednost mora biti vsaj {minValue}', Required: 'Obvezno', Expires: 'Velja do {date}' },
         errors: { unknown_setting: 'Neznana nastavitev {name}' },
+      },
+      fa: {
+        forms: { MinValue: 'حداقل {minValue}', ValueInRange: 'بین {minValue} و {maxValue}' },
       },
     },
   });
@@ -28,6 +32,8 @@ const defaults = {
   Required: 'Please enter a value',
   OnlyEnglish: 'English default',
   Untranslated: 'Nobody translated {what}',
+  ValueInRange: 'Value must be between {minValue} and {maxValue}',
+  Expires: 'Valid until {date}',
 };
 
 describe('translate', () => {
@@ -152,6 +158,124 @@ describe('translate', () => {
     const { translate } = createTranslatable(defaults);
 
     expect(translate('Required', {}, 'ignored')).toBe('Please enter a value');
+  });
+});
+
+describe('formatParams', () => {
+  function formattedI18n(locale: string) {
+    const i18n = i18nWith(locale);
+    const { t, n, d } = i18n.global;
+    const tf = formatParams(t, (value) => {
+      if (typeof value === 'number') return n(value);
+      if (value instanceof Date) return d(value);
+      return value;
+    });
+    return { global: i18n.global, tf };
+  }
+
+  it("should format a number param with n for the current locale's digits", () => {
+    const { tf } = formattedI18n('fa');
+    const { translate, translateStrings } = createTranslatable(defaults);
+
+    translateStrings(tf, 'forms');
+
+    expect(translate('ValueInRange', { minValue: 18, maxValue: 100 })).toBe('بین ۱۸ و ۱۰۰');
+  });
+
+  it('should format a Date param with d', () => {
+    const { global, tf } = formattedI18n('sl');
+    const { translate, translateStrings } = createTranslatable(defaults);
+    const date = new Date(2026, 9, 7);
+
+    translateStrings(tf, 'forms');
+
+    expect(translate('Expires', { date })).toBe(`Velja do ${global.d(date)}`);
+  });
+
+  it('should pass a value format returns as it is to t unchanged', () => {
+    const t = vi.fn<TranslateFunction>((key) => key);
+
+    formatParams(t, (value) => value)('Pattern', { pattern: '[a-z]+' });
+
+    expect(t).toHaveBeenCalledWith('Pattern', { pattern: '[a-z]+' });
+  });
+
+  it('should not mutate the params it is given', () => {
+    const { tf } = formattedI18n('fa');
+    const named = { minValue: 18, maxValue: 100 };
+
+    tf('forms.ValueInRange', named);
+
+    expect(named).toEqual({ minValue: 18, maxValue: 100 });
+  });
+
+  it("should read a getter param's current value on each call", () => {
+    let allowed = 'a, b';
+    const named = {
+      get allowedAsText() {
+        return allowed;
+      },
+    };
+    const tf = formatParams(
+      (key, values) => interpolate('One of {allowedAsText}', values),
+      (value) => value,
+    );
+
+    const first = tf('InAllowedValues', named);
+    allowed = 'c';
+    const second = tf('InAllowedValues', named);
+
+    expect([first, second]).toEqual(['One of a, b', 'One of c']);
+  });
+
+  it('should follow a locale switch in the formatted digits without another translateStrings call', () => {
+    const i18n = i18nWith('fa');
+    const { global } = i18n;
+    const { translate, translateStrings } = createTranslatable(defaults);
+    translateStrings(
+      formatParams(global.t, (v) => (typeof v === 'number' ? global.n(v) : v)),
+      'forms',
+    );
+    const message = computed(() => translate('MinValue', { minValue: 18 }));
+
+    expect(message.value).toBe('حداقل ۱۸');
+
+    global.locale.value = 'en';
+    expect(message.value).toBe('Must be at least 18');
+  });
+
+  it('should re-evaluate when reactive state read only by format changes', () => {
+    const locale = ref('fa');
+    const dictionary: Record<string, string> = { MinValue: 'At least {minValue}' };
+    const t: TranslateFunction = (key, named) => interpolate(dictionary[key] ?? key, named);
+    const { translate, translateStrings } = createTranslatable(defaults);
+    translateStrings(
+      formatParams(t, (v) => (typeof v === 'number' ? new Intl.NumberFormat(locale.value).format(v) : v)),
+    );
+    const message = computed(() => translate('MinValue', { minValue: 18 }));
+
+    expect(message.value).toBe('At least ۱۸');
+
+    locale.value = 'en';
+    expect(message.value).toBe('At least 18');
+  });
+
+  it('should fall back to the English default with the values unformatted when t has no translation', () => {
+    const { tf } = formattedI18n('fa');
+    const { translate, translateStrings } = createTranslatable(defaults);
+
+    translateStrings(tf, 'forms');
+
+    expect(translate('Untranslated', { what: 18 })).toBe('Nobody translated 18');
+  });
+
+  it('should format over a translation function written with interpolate', () => {
+    const dictionary: Record<string, string> = { Total: 'Skupaj {amount}' };
+    const t: TranslateFunction = (key, named) => interpolate(dictionary[key] ?? key, named);
+    const number = new Intl.NumberFormat('de');
+    const tf = formatParams(t, (value) => (typeof value === 'number' ? number.format(value) : value));
+
+    expect(tf('Total', { amount: 1234.5 })).toBe(`Skupaj ${number.format(1234.5)}`);
   });
 });
 
