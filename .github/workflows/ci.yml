@@ -41,9 +41,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      # A release carries its version in package.json and its notes in changelog.md, both written by hand in the
-      # pull request that makes it, and changelog.md ships inside the tarball. This is what states that the two
-      # agree, at the point the pair is written rather than at the point it is published.
+      # changelog.md ships in the tarball and must have a heading for the version in package.json.
       - name: Verify the changelog names this version
         run: |
           version=$(node -p "require('./package.json').version")

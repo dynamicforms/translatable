@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   used in the examples and tests, and its specifics are listed apart.
 - The readme is split into an application part and a library part, each stating what that party does.
 - The readme describes the application's part in translating run-time keys, such as its own server's error codes.
+- The readme states that a library lists this package in `peerDependencies` and keeps it external in its build.
 
 ## [0.2.0] - 2026-10-06
 

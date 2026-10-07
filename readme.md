@@ -118,6 +118,9 @@ export const { translate, translateStrings } = createTranslatable({
 
 Keys are PascalCase and name the meaning, not the English text (`Required`, not `PleaseEnterAValue`).
 
+List `@dynamicforms/translatable` in `peerDependencies` and mark it external in the build, so the application
+installs one copy for all libraries.
+
 Export `translateStrings` from the library's public API (`install()` options, a named export, or both) and
 document every key with its placeholders.
 
