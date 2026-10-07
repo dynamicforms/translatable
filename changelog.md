@@ -5,6 +5,17 @@ All notable changes to `@dynamicforms/translatable` will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-07
+
+### Changed
+- The readme states that a library function returning a translated message returns `ComputedRef<string>`, so a
+  stored message follows a locale switch.
+- The readme states that the package depends only on Vue and works with any function shaped like `t`; vue-i18n is
+  used in the examples and tests, and its specifics are listed apart.
+- The readme is split into an application part and a library part, each stating what that party does.
+- The readme describes the application's part in translating run-time keys, such as its own server's error codes.
+- The readme states that a library lists this package in `peerDependencies` and keeps it external in its build.
+
 ## [0.2.0] - 2026-10-06
 
 ### Changed

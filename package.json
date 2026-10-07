@@ -1,9 +1,9 @@
 {
   "name": "@dynamicforms/translatable",
   "private": false,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
-  "description": "Reactive string-translation primitives for @dynamicforms libraries: a library declares its English defaults, and the host application supplies translations for them.",
+  "description": "Reactive translatable strings for @dynamicforms libraries: a library declares English defaults, the application supplies its translation function.",
   "author": "Jure Erznožnik",
   "files": [
     "dist/*"
