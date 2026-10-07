@@ -10,8 +10,9 @@ Two parties use this package:
   translation function to each library's `translateStrings`.
 
 A library ships no translations and does not select a locale. The libraries list this package as a peer
-dependency, so the application installs it. The application imports from it only `interpolate` and the
-`TranslateFunction` type, to write a translation function without an i18n library.
+dependency, so the application installs it. The application imports from it only `formatParams`, to format
+placeholder values, and `interpolate` and the `TranslateFunction` type, to write a translation function without an
+i18n library.
 
 The package depends only on Vue. The translation function is any function with the signature below. vue-i18n's and
 i18next's `t` have it. The examples and the tests use vue-i18n.
@@ -24,6 +25,8 @@ type TranslateFunction = (key: string, named: Record<string, unknown>) => string
 
 Returns the translation of `key` with `named` substituted, or `key` unchanged if there is no translation. The
 application provides it; the library calls it.
+
+`named` holds the values as the library has them: numbers as numbers, dates as dates.
 
 ## Application
 
@@ -58,6 +61,42 @@ import { interpolate } from '@dynamicforms/translatable';
 const t = (key: string, named: Record<string, unknown>) => interpolate(dictionary[key] ?? key, named);
 translateFormsStrings(t);
 ```
+
+### Formatting values
+
+The translation function substitutes a value as it prints, so a number does not get the locale's digits or
+separators and a date prints as `Date.prototype.toString` does. `formatParams` wraps the translation function so
+that each value is formatted first. With vue-i18n:
+
+```ts
+import { formatParams } from '@dynamicforms/translatable';
+
+const { t, n, d } = i18n.global;
+const tf = formatParams(t, (value) =>
+  typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
+
+translateFormsStrings(tf, 'forms');
+translateGridStrings(tf, 'grid');
+```
+
+Without an i18n library, with `Intl` for the locale the application holds:
+
+```ts
+import { ref } from 'vue';
+
+const locale = ref('sl');
+const tf = formatParams(t, (value) => {
+  if (typeof value === 'number') return new Intl.NumberFormat(locale.value).format(value);
+  if (value instanceof Date) return new Intl.DateTimeFormat(locale.value).format(value);
+  return value;
+});
+```
+
+- One wrapped function serves every library.
+- `format` runs on every read, so reactive state it reads (vue-i18n's locale through `n` and `d`, or `locale`
+  above) is tracked, and strings follow a locale switch.
+- A value `format` returns unchanged reaches the translation function as it is.
+- A string without a translation falls back to the library's English default with the values unformatted.
 
 ### Resolution order
 
@@ -101,6 +140,9 @@ after changing them; each call re-evaluates all strings.
 - `t` covers the current locale and the `fallbackLocale` chain in step 1 of the resolution order.
 - `t` returns the key for a missing translation by default. A `missing` handler that returns a different value
   disables steps 2 and 3.
+- `t` substitutes named parameters as they print, without the locale's digits, separators or date format. See
+  [Formatting values](#formatting-values).
+- `n` and `d` without `numberFormats` or `datetimeFormats` format with `Intl`'s defaults for the current locale.
 - vue-i18n logs a warning for each missing key in development unless `missingWarn: false` is set.
 
 ## Library

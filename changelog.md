@@ -5,6 +5,14 @@ All notable changes to `@dynamicforms/translatable` will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-07
+
+### Added
+- `formatParams(t, format)`, returning a translation function that passes each placeholder value through `format`
+  before `t` substitutes it. Values are read on every call, so getters and reactive state `format` reads (such as
+  vue-i18n's locale through `n` and `d`) are followed; a string without a translation still falls back to the
+  English default with the values unformatted.
+
 ## [0.2.1] - 2026-10-07
 
 ### Changed

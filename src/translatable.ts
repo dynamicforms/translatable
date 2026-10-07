@@ -48,6 +48,19 @@ export function createTranslatable<T extends Record<string, string>>(defaults: T
 }
 
 /**
+ * Returns a translation function that formats each placeholder value with `format` before `t` substitutes it.
+ * Values are read and formatted on every call, so a getter's current value is used and reactive state `format`
+ * reads is tracked. The result of `t` is returned unchanged.
+ */
+export function formatParams(t: TranslateFunction, format: (value: unknown) => unknown): TranslateFunction {
+  return (key, named) => {
+    const formatted: Record<string, unknown> = {};
+    for (const name of Object.keys(named)) formatted[name] = format(named[name]);
+    return t(key, formatted);
+  };
+}
+
+/**
  * Replaces each `{name}` placeholder in `template` with `params[name]`. Placeholders without a matching param stay
  * unchanged.
  */
