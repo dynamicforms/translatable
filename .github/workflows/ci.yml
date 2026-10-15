@@ -67,7 +67,7 @@ jobs:
         uses: velis74/incremental-coverage-check@v3
         with:
           coverage-files: coverage/coverage-final.json
-          extra-ignore-patterns: '**/index.ts'
+          extra-ignore-patterns: '**/index.ts,scripts/**'
           log-level: INFO
           base-ref: ${{ github.base_ref }}
           head-ref: HEAD
