@@ -20,8 +20,7 @@
     "build": "vite build",
     "prepack": "npm run build",
     "test": "vitest run --coverage",
-    "lint": "eslint src --fix && markdownlint-cli2 --fix \"**/*.md\" && vue-tsc --noEmit",
-    "lint:ci": "eslint src && markdownlint-cli2 \"**/*.md\" && vue-tsc --noEmit"
+    "lint": "node scripts/lint.mjs"
   },
   "keywords": [
     "vue",
