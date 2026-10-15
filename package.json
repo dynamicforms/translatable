@@ -20,8 +20,7 @@
     "build": "vite build",
     "prepack": "npm run build",
     "test": "vitest run --coverage",
-    "lint": "eslint src --fix && vue-tsc --noEmit",
-    "lint:ci": "eslint src && vue-tsc --noEmit"
+    "lint": "node scripts/lint.mjs"
   },
   "keywords": [
     "vue",
@@ -61,6 +60,7 @@
     "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-unicorn": "^73.0.0",
     "eslint-plugin-vue": "^10.10.0",
+    "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.9.6",
     "rollup-plugin-visualizer": "^5.14.0",
     "typescript": "^5",
