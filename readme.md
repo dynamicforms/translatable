@@ -4,7 +4,7 @@ Translatable strings for the `@dynamicforms` Vue libraries.
 
 Two parties use this package:
 
-- **Library**: a package with user-facing strings, such as `@dynamicforms/vue-forms`. It declares its strings with
+- **Library**: a package with user-facing strings, such as `@dynamicforms/vue-grid`. It declares its strings with
   English defaults, reads them with `translate`, and exports `translateStrings`.
 - **Application**: the app that uses such libraries. It owns the translations and the locale, and passes its
   translation function to each library's `translateStrings`.
@@ -36,18 +36,19 @@ Call each library's `translateStrings` once, with the translation function and t
 library's keys in the application's translations. With vue-i18n:
 
 ```ts
-import { translateStrings as translateFormsStrings } from '@dynamicforms/vue-forms';
+import { translateStrings as translateInputsStrings } from '@dynamicforms/vuetify-inputs';
 import { translateStrings as translateGridStrings } from '@dynamicforms/vue-grid';
 
-translateFormsStrings(i18n.global.t, 'forms');
+translateInputsStrings(i18n.global.t, 'inputs');
 translateGridStrings(i18n.global.t, 'grid');
 ```
 
 ```json
-{ "forms": { "MinValue": "Vrednost mora biti vsaj {minValue}" } }
+{ "grid": { "SelectionCountSelected": "Izbranih elementov: {count}" } }
 ```
 
-With namespace `forms`, the library looks up key `MinValue` as `forms.MinValue`. Without a namespace, as `MinValue`.
+With namespace `grid`, the library looks up key `SelectionCountSelected` as `grid.SelectionCountSelected`. Without a
+namespace, as `SelectionCountSelected`.
 
 Each library's documentation lists its keys and the placeholders in their default text. Translations use the same
 placeholder names; the library passes their values and the translation function substitutes them.
@@ -59,7 +60,7 @@ placeholders:
 import { interpolate } from '@dynamicforms/translatable';
 
 const t = (key: string, named: Record<string, unknown>) => interpolate(dictionary[key] ?? key, named);
-translateFormsStrings(t);
+translateGridStrings(t);
 ```
 
 ### Formatting values
@@ -75,7 +76,7 @@ const { t, n, d } = i18n.global;
 const tf = formatParams(t, (value) =>
   typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
 
-translateFormsStrings(tf, 'forms');
+translateInputsStrings(tf, 'inputs');
 translateGridStrings(tf, 'grid');
 ```
 
@@ -153,12 +154,12 @@ after changing them; each call re-evaluates all strings.
 import { createTranslatable } from '@dynamicforms/translatable';
 
 export const { translate, translateStrings } = createTranslatable({
-  Required: 'Please enter a value',
-  MinValue: 'Value must be at least {minValue}',
+  NoData: 'No data',
+  SelectionCountSelected: '{count} items selected',
 });
 ```
 
-Keys are PascalCase and name the meaning, not the English text (`Required`, not `PleaseEnterAValue`).
+Keys are PascalCase and name the meaning, not the English text (`NoData`, not `NothingToShow`).
 
 List `@dynamicforms/translatable` in `peerDependencies` and mark it external in the build, so the application
 installs one copy for all libraries.
@@ -173,12 +174,12 @@ it where the string is displayed, in a template or a computed:
 
 ```vue
 <template>
-  <span>{{ translate('MinValue', { minValue }) }}</span>
+  <span>{{ translate('SelectionCountSelected', { count }) }}</span>
 </template>
 ```
 
 ```ts
-const message = computed(() => translate('MinValue', { minValue: 5 }));
+const message = computed(() => translate('SelectionCountSelected', { count: 5 }));
 ```
 
 ### Returning a translated message
@@ -186,8 +187,8 @@ const message = computed(() => translate('MinValue', { minValue: 5 }));
 A library function that hands a translated message to its caller returns `ComputedRef<string>`, not `string`:
 
 ```ts
-export function requiredMessage(): ComputedRef<string> {
-  return computed(() => translate('Required'));
+export function noDataMessage(): ComputedRef<string> {
+  return computed(() => translate('NoData'));
 }
 ```
 
